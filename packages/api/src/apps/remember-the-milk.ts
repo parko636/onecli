@@ -13,6 +13,7 @@ import { OAUTH_STATE_SECRET, SECRET_ENCRYPTION_KEY } from "../lib/env";
 const AUTHORIZE_URL = "https://www.rememberthemilk.com/oauth/authorize.rtm";
 const TOKEN_URL = "https://www.rememberthemilk.com/oauth/token.rtm";
 const REGISTRATION_URL = "https://www.rememberthemilk.com/oauth/register.rtm";
+const INTROSPECTION_URL = "https://www.rememberthemilk.com/oauth/validate.rtm";
 
 // Deterministic PKCE verifier derived from the signed OAuth state — same
 // pattern as x.ts (no in-memory store; survives multi-instance deployments).
@@ -135,9 +136,43 @@ export const rememberTheMilk: AppDefinition = {
           : undefined,
       };
 
+      // RTM has no userinfo endpoint, but its RFC 7662 introspection response
+      // carries the account identity (username, sub) — used as the connection
+      // label and for same-account dedupe. Best-effort like todoist's user
+      // fetch: a failure here costs only the label, never the connection.
+      let metadata: Record<string, unknown> | undefined;
+      try {
+        const introspectRes = await fetch(INTROSPECTION_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            token: tokenData.access_token,
+            client_id: appCredentials.clientId!,
+            ...(appCredentials.clientSecret
+              ? { client_secret: appCredentials.clientSecret }
+              : {}),
+          }),
+        });
+        if (introspectRes.ok) {
+          const info = (await introspectRes.json()) as {
+            username?: string;
+            sub?: string;
+          };
+          if (info.username) {
+            metadata = {
+              username: info.username,
+              ...(info.sub ? { accountId: info.sub } : {}),
+            };
+          }
+        }
+      } catch {
+        // label-only — swallow
+      }
+
       return {
         credentials,
         scopes: tokenData.scope?.split(" ").filter(Boolean) ?? [],
+        metadata,
       };
     },
   },
