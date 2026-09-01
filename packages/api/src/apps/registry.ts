@@ -26,6 +26,7 @@ import { googleSlides } from "./google-slides";
 import { googleTasks } from "./google-tasks";
 import { mongodbAtlas } from "./mongodb-atlas";
 import { notion } from "./notion";
+import { rememberTheMilk } from "./remember-the-milk";
 import { resend } from "./resend";
 import { todoist } from "./todoist";
 import { vertexAi } from "./vertex-ai";
@@ -88,6 +89,7 @@ const staticApps: AppDefinition[] = [
   youtube,
   vertexAi,
   todoist,
+  rememberTheMilk,
   cloudflare,
   flyio,
   dropbox,

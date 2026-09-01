@@ -185,6 +185,17 @@ static TODOIST_REFRESH: RefreshConfig = RefreshConfig {
     client_auth: ClientCredentialMethod::Body,
 };
 
+/// Refresh config for Remember The Milk's MCP OAuth server. RTM advertises
+/// "none" as a valid token_endpoint_auth_method (public client, no secret) —
+/// an empty RTM_CLIENT_SECRET env var is fine if none was issued at DCR time.
+static RTM_REFRESH: RefreshConfig = RefreshConfig {
+    token_url: "https://www.rememberthemilk.com/oauth/token.rtm",
+    client_id_env: "RTM_CLIENT_ID",
+    client_secret_env: "RTM_CLIENT_SECRET",
+    body_format: TokenBodyFormat::Form,
+    client_auth: ClientCredentialMethod::Body,
+};
+
 /// Shared refresh config for all Google OAuth APIs.
 static GOOGLE_REFRESH: RefreshConfig = RefreshConfig {
     token_url: "https://oauth2.googleapis.com/token",
@@ -876,6 +887,24 @@ static APP_PROVIDERS: &[AppProvider] = &[
             credential_host_field: None,
         }],
         refresh: Some(&TODOIST_REFRESH),
+        metadata_headers: &[],
+        credential_headers: &[],
+        credential_params: &[],
+        host_rewrite: None,
+        finalizer: None,
+        body_transform: None,
+    },
+    AppProvider {
+        provider: "remember-the-milk",
+        display_name: "Remember The Milk",
+        host_rules: &[HostRule {
+            pattern: HostPattern::Exact("www.rememberthemilk.com"),
+            path_prefix: Some("/mcp"),
+            strategy: AuthStrategy::Bearer,
+            intercept: false,
+            credential_host_field: None,
+        }],
+        refresh: Some(&RTM_REFRESH),
         metadata_headers: &[],
         credential_headers: &[],
         credential_params: &[],

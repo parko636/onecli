@@ -56,6 +56,7 @@ export const APP_CATEGORIES: Record<string, AppCategory> = {
   confluence: "project-management",
   notion: "project-management",
   todoist: "project-management",
+  "remember-the-milk": "project-management",
   trello: "project-management",
   monday: "project-management",
 
