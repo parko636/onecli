@@ -31,7 +31,7 @@ const deriveCodeChallenge = async (verifier: string): Promise<string> => {
 export const rememberTheMilk: AppDefinition = {
   id: "remember-the-milk",
   name: "Remember The Milk",
-  icon: "/icons/remember-the-milk.svg",
+  icon: "/icons/remember-the-milk.png",
   description: "Tasks and lists in Remember The Milk.",
   connectionMethod: {
     type: "oauth",
