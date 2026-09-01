@@ -126,3 +126,19 @@ export const getApps = (): AppDefinition[] => [...staticApps];
 
 export const getApp = (id: string): AppDefinition | undefined =>
   getApps().find((app) => app.id === id);
+
+/**
+ * Whether an app is connectable without any user-supplied credentials in the
+ * CALLING process's environment: every envDefaults var is set, or the app
+ * self-registers a client via DCR at connect time. The dashboard's RSC pages
+ * and the api-server's /apps/env-defaults route both gate the credentials
+ * dialog on this — keep them on one definition or they drift (the two
+ * processes read different env, which is fine; the rule must not differ).
+ */
+export const hasDefaultCredentials = (app: AppDefinition): boolean => {
+  if (app.dcr) return true;
+  const defaults = Object.values(app.configurable?.envDefaults ?? {});
+  return (
+    defaults.length > 0 && defaults.every((envVar) => !!process.env[envVar])
+  );
+};

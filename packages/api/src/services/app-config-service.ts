@@ -244,6 +244,71 @@ export const saveAppConfigWithoutDisconnect = async (
   });
 };
 
+export interface DcrClientRecord {
+  clientId: string;
+  clientSecret: string;
+  /** The redirect URI registered with the provider for this client. */
+  redirectUri: string;
+}
+
+const dcrConfigData = async (record: DcrClientRecord) => ({
+  settings: {
+    clientId: record.clientId,
+    // The DCR marker: its presence says the resolver registered this row
+    // itself, and its value is what drift detection compares against. A manual
+    // BYOC save (upsertAppConfig) rebuilds settings from the field definitions
+    // and drops it, handing the row back to the user.
+    dcrRedirectUri: record.redirectUri,
+  } as Prisma.InputJsonValue,
+  credentials: await getCrypto().encrypt(
+    JSON.stringify({ clientSecret: record.clientSecret }),
+  ),
+});
+
+/**
+ * Persist a client minted via RFC 7591 Dynamic Client Registration (see
+ * apps/dcr.ts). Create-only on purpose — returns null on a unique-key conflict
+ * instead of upserting, so a concurrent first connect that lost the race
+ * reuses the winner's client (each in-flight authorize leg is bound to the
+ * client_id it was built with) rather than clobbering the row.
+ */
+export const createDcrAppConfig = async (
+  scope: ResourceScope,
+  provider: string,
+  record: DcrClientRecord,
+): Promise<{ id: string } | null> => {
+  const data = await dcrConfigData(record);
+  try {
+    return await db.appConfig.create({
+      data: { ...scopeCreate(scope), provider, enabled: true, ...data },
+      select: { id: true },
+    });
+  } catch (err) {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2002"
+    ) {
+      return null;
+    }
+    throw err;
+  }
+};
+
+/** Replace a DCR row's client in place after a redirect-URI drift
+ *  re-registration (the row keeps its id, so connection provenance links and
+ *  the gateway's refresh lookup follow it to the new client). */
+export const updateDcrAppConfig = async (
+  appConfigId: string,
+  record: DcrClientRecord,
+): Promise<{ id: string }> => {
+  const data = await dcrConfigData(record);
+  return db.appConfig.update({
+    where: { id: appConfigId },
+    data,
+    select: { id: true },
+  });
+};
+
 export const deleteAppConfig = async (
   scope: ResourceScope,
   provider: string,

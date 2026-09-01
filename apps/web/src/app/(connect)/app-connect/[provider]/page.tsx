@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getApp } from "@onecli/api/apps/registry";
+import { getApp, hasDefaultCredentials } from "@onecli/api/apps/registry";
 import { checkAppConfigExists } from "@/lib/actions/app-config";
 import { ConnectFlow } from "../_components/connect-flow";
 
@@ -33,13 +33,8 @@ export default async function ConnectPage({ params, searchParams }: Props) {
   const app = getApp(provider);
   if (!app) notFound();
 
-  // Check if platform defaults are available (server-only env var check)
-  let hasEnvDefaults = false;
-  if (app.configurable) {
-    const defaults = Object.values(app.configurable.envDefaults ?? {});
-    hasEnvDefaults =
-      defaults.length > 0 && defaults.every((envVar) => !!process.env[envVar]);
-  }
+  // Platform defaults available? (server-only env var check, or DCR)
+  const hasEnvDefaults = hasDefaultCredentials(app);
 
   // Check if user has custom AppConfig (org-scoped when the popup carries an
   // orgId — the org connect flow resolves org-level credentials).

@@ -5,11 +5,14 @@ import { OAUTH_STATE_SECRET, SECRET_ENCRYPTION_KEY } from "../lib/env";
 // https://www.rememberthemilk.com/.well-known/oauth-authorization-server) and
 // supports Dynamic Client Registration (RFC 7591) plus public clients
 // (token_endpoint_auth_methods_supported includes "none") and PKCE (S256).
-// A client_id is obtained once via the registration_endpoint below and reused
-// as a platform-wide default (see envDefaults) — no per-user app creation needed.
+// Registration is anonymous, so the resolver self-registers a client on the
+// first connect (see the `dcr` field below and apps/dcr.ts) — no per-user app
+// creation and no pre-provisioned env vars needed. Manual BYOC and the
+// RTM_CLIENT_ID/RTM_CLIENT_SECRET env defaults still win when present.
 
 const AUTHORIZE_URL = "https://www.rememberthemilk.com/oauth/authorize.rtm";
 const TOKEN_URL = "https://www.rememberthemilk.com/oauth/token.rtm";
+const REGISTRATION_URL = "https://www.rememberthemilk.com/oauth/register.rtm";
 
 // Deterministic PKCE verifier derived from the signed OAuth state — same
 // pattern as x.ts (no in-memory store; survives multi-instance deployments).
@@ -58,9 +61,11 @@ export const rememberTheMilk: AppDefinition = {
     ],
     buildAuthUrl: async ({ appCredentials, redirectUri, scopes, state }) => {
       if (!appCredentials.clientId) {
+        // Unreachable when resolution succeeds — the DCR arm self-registers a
+        // client — but kept as a guard for a hand-rolled empty config.
         throw new Error(
           "Remember The Milk client ID not configured — register one via " +
-            "https://www.rememberthemilk.com/oauth/register.rtm (RFC 7591 DCR) " +
+            `${REGISTRATION_URL} (RFC 7591 DCR) ` +
             "using this instance's redirect URI, then set RTM_CLIENT_ID.",
         );
       }
@@ -136,11 +141,16 @@ export const rememberTheMilk: AppDefinition = {
       };
     },
   },
+  dcr: {
+    registrationEndpoint: REGISTRATION_URL,
+    clientName: "OneCLI",
+  },
   configurable: {
     hint:
-      "Register a client once via RTM's Dynamic Client Registration endpoint " +
-      "(https://www.rememberthemilk.com/oauth/register.rtm) using this instance's " +
-      "redirect URI, then set RTM_CLIENT_ID (and RTM_CLIENT_SECRET if one is issued).",
+      "Optional — OneCLI self-registers a client via RTM's Dynamic Client " +
+      "Registration on first connect. To bring your own instead, register at " +
+      "https://www.rememberthemilk.com/oauth/register.rtm with this instance's " +
+      "redirect URI and enter the issued credentials here.",
     fields: [
       {
         name: "clientId",

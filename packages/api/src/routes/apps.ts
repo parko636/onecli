@@ -5,7 +5,7 @@ import { db } from "@onecli/db";
 import type { ApiEnv } from "../types";
 import { authMiddleware, requireWorkspaceId, auth } from "../middleware/auth";
 import { hasActiveMembership } from "../middleware/auth/resolve";
-import { getApp, getApps } from "../apps/registry";
+import { getApp, getApps, hasDefaultCredentials } from "../apps/registry";
 import {
   getAppPermissionDefinition,
   getAppPermissionDefinitions,
@@ -255,18 +255,14 @@ export const appRoutes = () => {
     );
   });
 
-  // ── GET /apps/env-defaults ── providers with platform default creds ────
+  // ── GET /apps/env-defaults ── providers connectable with no user setup ──
   // Reports this API process's env — the same env resolveAppCredentials
-  // reads during the OAuth flows.
+  // reads during the OAuth flows — plus DCR-capable apps, which mint their
+  // own client at connect time (resolve-credentials.ts, last tier). The
+  // dashboard reads membership here as "skip the credentials dialog".
   app.get("/env-defaults", auth({ requireWorkspace: false }), async (c) => {
     const providers = getApps()
-      .filter((appDef) => {
-        const envDefaults = appDef.configurable?.envDefaults;
-        if (!envDefaults) return false;
-        return Object.values(envDefaults).every(
-          (envVar) => !!process.env[envVar],
-        );
-      })
+      .filter(hasDefaultCredentials)
       .map((appDef) => appDef.id);
     return c.json(providers);
   });
@@ -427,10 +423,15 @@ export const appRoutes = () => {
         ...(agentName ? { agentName } : {}),
       });
 
+      // Resolved before credentials: the DCR tier registers a client bound to
+      // this exact URI when nothing else is configured.
+      const redirectUri = `${getApiCallbackOrigin(c.req.raw)}/v1/apps/${provider}/callback`;
+
       const resolved = await resolveAppCredentials(
         workspaceId,
         appDef,
         auth.organizationId,
+        redirectUri,
       );
       if (!resolved) {
         return c.json(
@@ -443,7 +444,6 @@ export const appRoutes = () => {
 
       const { values: creds } = resolved;
 
-      const redirectUri = `${getApiCallbackOrigin(c.req.raw)}/v1/apps/${provider}/callback`;
       const scopes = appDef.connectionMethod.defaultScopes ?? [];
 
       const authUrl = await appDef.connectionMethod.buildAuthUrl({
@@ -577,16 +577,19 @@ export const appRoutes = () => {
         }
       }
 
+      const redirectUri = `${apiOrigin}/v1/apps/${provider}/callback`;
+
+      // Passing the redirectUri keeps this leg on the same resolution the
+      // authorize leg used — including the row a DCR registration just wrote.
       const resolved = await resolveAppCredentials(
         state.workspaceId,
         appDef,
         stateOrgId,
+        redirectUri,
       );
       if (!resolved) {
         return errorRedirect(`${appDef.name} is not configured`);
       }
-
-      const redirectUri = `${apiOrigin}/v1/apps/${provider}/callback`;
 
       const url = new URL(c.req.url);
       const callbackParams = Object.fromEntries(url.searchParams.entries());

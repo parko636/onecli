@@ -55,10 +55,12 @@ vi.mock("../services/workspace-access-check", () => ({
 
 // The observation point: capture the `redirectUri` each leg passes the
 // provider adapter — the value under test.
-const captured: { authUrl: string[]; exchange: string[] } = {
-  authUrl: [],
-  exchange: [],
-};
+const captured: { authUrl: string[]; exchange: string[]; resolver: string[] } =
+  {
+    authUrl: [],
+    exchange: [],
+    resolver: [],
+  };
 
 vi.mock("../apps/registry", () => ({
   getApp: (id: string) =>
@@ -87,11 +89,22 @@ vi.mock("../apps/registry", () => ({
   getApps: () => [],
 }));
 
+// Both legs must hand the resolver the same API-origin redirect_uri they give
+// the provider — it is what the DCR tier registers with, so a drift here means
+// registering a client bound to the wrong URI.
 vi.mock("../apps/resolve-credentials", () => ({
-  resolveAppCredentials: async () => ({
-    values: { clientId: "cid", clientSecret: "cs" },
-    appConfigId: "cfg-1",
-  }),
+  resolveAppCredentials: async (
+    _workspaceId: string,
+    _app: unknown,
+    _organizationId?: string,
+    redirectUri?: string,
+  ) => {
+    captured.resolver.push(redirectUri ?? "(none)");
+    return {
+      values: { clientId: "cid", clientSecret: "cs" },
+      appConfigId: "cfg-1",
+    };
+  },
 }));
 
 vi.mock("../services/connection-service", () => ({
@@ -135,6 +148,7 @@ describe("oauth redirect_uri resolves to the API origin", () => {
     }
     captured.authUrl.length = 0;
     captured.exchange.length = 0;
+    captured.resolver.length = 0;
   });
 
   const splitHostEnv = () => {
@@ -171,6 +185,7 @@ describe("oauth redirect_uri resolves to the API origin", () => {
     expect(captured.authUrl).toEqual([
       "https://api.example.com/v1/apps/oauthapp/callback",
     ]);
+    expect(captured.resolver).toEqual(captured.authUrl);
   });
 
   it("the callback's token exchange rebuilds the identical redirect_uri", async () => {
@@ -192,6 +207,7 @@ describe("oauth redirect_uri resolves to the API origin", () => {
     expect(captured.exchange).toEqual([
       "https://api.example.com/v1/apps/oauthapp/callback",
     ]);
+    expect(captured.resolver).toEqual(captured.exchange);
   });
 
   it("derives the redirect_uri from the request when no API URL is configured", async () => {

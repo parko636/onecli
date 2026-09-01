@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getApp } from "@onecli/api/apps/registry";
+import { getApp, hasDefaultCredentials } from "@onecli/api/apps/registry";
 import { checkAppConfigExists } from "@/lib/actions/app-config";
 import { AppDetail } from "../../_components/app-detail";
 
@@ -12,12 +12,7 @@ const AppDetailPage = async ({ params }: Props) => {
   const app = getApp(provider);
   if (!app) notFound();
 
-  let hasEnvDefaults = false;
-  if (app.configurable) {
-    const defaults = Object.values(app.configurable.envDefaults ?? {});
-    hasEnvDefaults =
-      defaults.length > 0 && defaults.every((envVar) => !!process.env[envVar]);
-  }
+  const hasEnvDefaults = hasDefaultCredentials(app);
 
   let hasAppConfig = false;
   try {

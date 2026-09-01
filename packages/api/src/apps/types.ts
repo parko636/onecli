@@ -162,6 +162,17 @@ export interface AppDefinition {
     name: string;
     hostPattern: string;
   }[];
+  /** RFC 7591 Dynamic Client Registration. When set and no credentials are
+   *  configured anywhere (workspace AppConfig → org → env all miss), the
+   *  resolver self-registers an OAuth client at connect time and persists it
+   *  as a workspace AppConfig row — manual BYOC and env defaults always win
+   *  over registering a new client. */
+  dcr?: {
+    /** The provider's RFC 7591 `registration_endpoint`. */
+    registrationEndpoint: string;
+    /** `client_name` sent in the registration request. */
+    clientName: string;
+  };
   /** OAuth apps can be configured with custom credentials (BYOC). */
   configurable?: {
     fields: OAuthConfigField[];
